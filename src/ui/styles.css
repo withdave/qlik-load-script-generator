@@ -516,3 +516,13 @@ pre.script ::selection { background: var(--ed-select); }
 /* ---------- Section intros ---------- */
 .input-intro { margin: -4px 0 10px; }
 .group-intro { margin: 0 0 12px; }
+
+/* ---------- Excel upload ---------- */
+.file-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+.file-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.file-status:empty { display: none; }
+.file-status > .dim { overflow-wrap: anywhere; }
+.sheet-pick { display: inline-flex; align-items: center; gap: 6px; }
+.sheet-pick .field-label { margin: 0; }
+.sheet-pick select { width: auto; max-width: 100%; }
+.file-error { font-size: 12.5px; color: var(--error); overflow-wrap: anywhere; }

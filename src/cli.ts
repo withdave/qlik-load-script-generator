@@ -1,5 +1,6 @@
 // Command-line front end to the generators; bundled into the Claude skill as scripts/qlik-gen.mjs.
 //   qlik-gen inline [file|-] [--table T] [--format auto|delimited|markdown|html|json|ndjson] [--mapping] [--null] [--verbatim]
+//                   [--sheet S]   an .xlsx/.xlsm file loads one sheet (default: the first visible one; --table defaults to its name)
 //   qlik-gen engine [file|-] [--source file|inline|field] [--path lib://...] [--table T --field F --key K --method reader|jsonget|fromfield --sample]
 //                   [--mode explicit|star|alltables] [--root Name] [--matrix native|jsonget] [--max-depth N] [--exclude /ptr]...
 //   qlik-gen rest   [file|-] --connection C --url U [--query k=v]... [--header 'K: V']... [--body text] [--no-flatten] [--naming path|connector]
@@ -19,6 +20,7 @@ import { shapeOf } from './core/json/shape';
 import { engineTables, tableLabel } from './core/json/tables';
 import type { InputFormat, Warning } from './core/model';
 import { parseNdjson, tryParseJson, type Json } from './core/parse/json';
+import { looksLikeZip, readXlsx, rowsToTsv } from './core/parse/xlsx';
 
 const [cmd, ...rest] = process.argv.slice(2);
 const { values: o, positionals } = parseArgs({
@@ -26,6 +28,7 @@ const { values: o, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     table: { type: 'string' },
+    sheet: { type: 'string' },
     format: { type: 'string' },
     mapping: { type: 'boolean' },
     null: { type: 'boolean' },
@@ -64,7 +67,8 @@ const { values: o, positionals } = parseArgs({
   },
 });
 
-const input = (): string => readFileSync(positionals[0] && positionals[0] !== '-' ? positionals[0] : 0, 'utf8');
+const inputBytes = (): Buffer => readFileSync(positionals[0] && positionals[0] !== '-' ? positionals[0] : 0);
+const input = (): string => inputBytes().toString('utf8');
 const num = (s: string | undefined, d: number) => (s && Number.isFinite(Number(s)) ? Number(s) : d);
 const report = (warnings: Warning[], checklist: string[] = [], settings: ConnectionSetting[] = []) => {
   for (const w of warnings) process.stderr.write(`// ${w.level.toUpperCase()}: ${w.message}\n`);
@@ -82,8 +86,23 @@ function json(text: string, perRow: boolean): Json[] {
 try {
   switch (cmd) {
     case 'inline': {
-      const { table } = parseTabular(input(), o.format && o.format !== 'auto' ? { format: o.format as InputFormat } : {});
-      const r = generateInline(table, { tableName: o.table, mapping: o.mapping, emptyAsNull: o.null, preserveWhitespace: o.verbatim });
+      const bytes = inputBytes();
+      let text: string;
+      let tableName = o.table;
+      let opts: Parameters<typeof parseTabular>[1] = o.format && o.format !== 'auto' ? { format: o.format as InputFormat } : {};
+      if (looksLikeZip(bytes) || bytes.subarray(0, 4).toString('hex') === 'd0cf11e0') {
+        const wb = await readXlsx(bytes);
+        const asked = o.sheet ?? (wb.sheets.find((s) => !s.hidden) ?? wb.sheets[0]).name;
+        const rows = wb.rows(asked);
+        const sheet = wb.sheets.find((s) => s.name === asked)?.name ?? wb.sheets.find((s) => s.name.toLowerCase() === asked.toLowerCase())?.name ?? asked;
+        if (!rows.length) throw new Error(`Sheet "${sheet}" is empty`);
+        text = rowsToTsv(rows);
+        opts = { format: 'delimited', delimiter: '\t' };
+        tableName ??= sheet;
+        process.stderr.write(`// Sheet "${sheet}" of ${wb.sheets.map((s) => s.name).join(', ')}\n`);
+      } else text = bytes.toString('utf8');
+      const { table } = parseTabular(text, opts);
+      const r = generateInline(table, { tableName, mapping: o.mapping, emptyAsNull: o.null, preserveWhitespace: o.verbatim });
       process.stdout.write(r.script);
       report(r.warnings);
       break;

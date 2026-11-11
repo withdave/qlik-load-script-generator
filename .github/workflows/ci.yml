@@ -47,6 +47,7 @@ jobs:
           npm run build:skill
           cli=skills/qlik-inline-json-rest-generator/scripts/qlik-gen.mjs
           node "$cli" inline fixtures/tabular/nasty.csv --table Notes | grep -q 'INLINE'
+          node "$cli" inline fixtures/tabular/workbook.xlsx --sheet Products | grep -q '^007,Widget'
           node "$cli" engine fixtures/json/nested.json --source inline --root Company | grep -q "table is '/employees'"
           node "$cli" rest fixtures/json/qlik-cloud-users-page.json --connection c --url https://t/api/v1/users --paging nexturl --next links.next.href | grep -q 'LOOP WHILE'
 

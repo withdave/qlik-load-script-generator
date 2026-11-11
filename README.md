@@ -2,7 +2,7 @@
 
 A backend-free web app, and a matching Claude skill, that write Qlik Sense / Qlik Cloud load script for three fiddly jobs:
 
-1. **Paste → INLINE.** Paste CSV, an Excel or Google Sheets selection, a Markdown or HTML table, or a JSON array, and get a `LOAD … INLINE` statement. It handles every escaping trap: `]`, `$(`, quotes, line breaks, `//`, delimiters in values, leading zeros, and duplicate or blank headers.
+1. **Paste → INLINE.** Paste CSV, an Excel or Google Sheets selection, a Markdown or HTML table, or a JSON array, or upload an Excel workbook (`.xlsx`/`.xlsm`) and pick a sheet, and get a `LOAD … INLINE` statement. Workbooks are read in the browser with no extra dependency: dates come out as ISO text, numbers as Excel shows them (15 significant digits), and text cells keep leading zeros. Legacy `.xls` is not supported. It handles every escaping trap: `]`, `$(`, quotes, line breaks, `//`, delimiters in values, leading zeros, and duplicate or blank headers.
 2. **JSON → Engine.** Native `(json)` loads from a file or URL, an embedded sample, or **JSON stored in a column of a loaded table** (the database case). You get one load per array with `table is`, link keys built from `%Path` (so records with identical arrays don't share child rows), matrix (`[][]`) support, and warnings for engine limits and double-encoded JSON.
 3. **JSON → REST connector.** The connector's own `SQL SELECT … FROM JSON (wrap on) "root"` statement, reproduced exactly from a sample response. Nested objects can be merged into tidy tables, and pagination (Next URL, token, offset, or page number) either runs in script with page-unique keys, or is left to the connection's own pagination setting, in which case the tool lists the exact settings to enter.
 
@@ -36,7 +36,7 @@ npm run build
 
 ```
 src/core/            pure TypeScript generators, shared by the UI, tests and CLI
-  detect.ts, parse/  format detection; CSV/TSV, Markdown, HTML and JSON parsers
+  detect.ts, parse/  format detection; CSV/TSV, Markdown, HTML, JSON and .xlsx parsers
   inline/            INLINE generator (delimiter/enclosure choice, tokens, Text())
   json/shape.ts      merged JSON shape of samples
   json/tables.ts     the engine's table/field/key naming model

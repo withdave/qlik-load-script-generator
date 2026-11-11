@@ -1238,6 +1238,230 @@ function pagingLoop(pg, opts, meta, conn, select, loads, finals, warnings) {
   return out;
 }
 
+// src/core/parse/xlsx.ts
+var looksLikeZip = (b) => b.length > 4 && b[0] === 80 && b[1] === 75 && b[2] === 3 && b[3] === 4;
+async function unzip(bytes, wanted) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65535); i--) {
+    if (dv.getUint32(i, true) === 101010256) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error("Not an Excel workbook (.xlsx): the file is not a ZIP archive");
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const out = /* @__PURE__ */ new Map();
+  const utf8 = new TextDecoder();
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 33639248) throw new Error("Corrupt workbook: bad ZIP central directory");
+    const method = dv.getUint16(p + 10, true);
+    const size = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const local = dv.getUint32(p + 42, true);
+    const name = utf8.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    p += 46 + nameLen + extraLen + commentLen;
+    if (!wanted(name)) continue;
+    if (size === 4294967295 || local === 4294967295) throw new Error("Workbook is too large (ZIP64 is not supported)");
+    const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+    const data = bytes.subarray(start, start + size);
+    let raw;
+    if (method === 0) raw = data;
+    else if (method === 8) {
+      const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      raw = new Uint8Array(await new Response(stream).arrayBuffer());
+    } else throw new Error(`Unsupported ZIP compression method ${method}`);
+    out.set(name, utf8.decode(raw));
+  }
+  return out;
+}
+var unescapeXml = (s) => s.replace(
+  /&(?:#x([0-9a-f]+)|#(\d+)|(lt|gt|amp|quot|apos));/gi,
+  (_, hex, dec, named) => hex ? String.fromCodePoint(parseInt(hex, 16)) : dec ? String.fromCodePoint(Number(dec)) : { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" }[named.toLowerCase()]
+);
+var unescapeOoxml = (s) => s.replace(/_x([0-9A-Fa-f]{4})_/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+function attrs(tag) {
+  const a = {};
+  for (const m of tag.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    const v = unescapeXml(m[2] ?? m[3]);
+    a[m[1]] = v;
+    const local = m[1].replace(/^[\w.-]+:/, "");
+    a[local] ??= v;
+  }
+  return a;
+}
+function textOf(xml) {
+  const body = xml.replace(/<(\w+:)?rPh\b[\s\S]*?<\/\1?rPh>/g, "");
+  let s = "";
+  for (const m of body.matchAll(/<(?:\w+:)?t(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?t>/g)) s += m[1];
+  return unescapeOoxml(unescapeXml(s));
+}
+var tags = (xml, name) => xml.matchAll(new RegExp(`<(?:\\w+:)?${name}\\b([^>]*?)(?:/>|>([\\s\\S]*?)</(?:\\w+:)?${name}>)`, "g"));
+function resolve(base, target) {
+  if (target.startsWith("/")) return target.slice(1);
+  const parts = base.split("/").slice(0, -1);
+  for (const seg of target.split("/")) {
+    if (seg === "..") parts.pop();
+    else if (seg && seg !== ".") parts.push(seg);
+  }
+  return parts.join("/");
+}
+function relationships(files, part) {
+  const dir = part.split("/").slice(0, -1).join("/");
+  const relsPath = `${dir ? `${dir}/` : ""}_rels/${part.split("/").pop()}.rels`;
+  const m = /* @__PURE__ */ new Map();
+  for (const [, a] of tags(files.get(relsPath) ?? "", "Relationship")) {
+    const r = attrs(a);
+    if (r.Id && r.Target) m.set(r.Id, r.TargetMode === "External" ? r.Target : resolve(part, r.Target));
+  }
+  return m;
+}
+var BUILTIN_DATE = /* @__PURE__ */ new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
+var BUILTIN_TIME_ONLY = /* @__PURE__ */ new Set([18, 19, 20, 21, 45, 46, 47]);
+function classifyFormat(code) {
+  const c = code.split(";")[0].replace(/"[^"]*"/g, "").replace(/\\./g, "").replace(/\[(?![hms]+\])[^\]]*\]/gi, "");
+  if (!/[dmyhs]/i.test(c) || /^general$/i.test(c.trim())) return null;
+  const date = /[dy]/i.test(c) || /m/i.test(c) && !/[hs]/i.test(c);
+  const time = /[hs]/i.test(c);
+  return { date, time };
+}
+function pad(n, w = 2) {
+  return String(n).padStart(w, "0");
+}
+function serialToIso(serial, fmt, date1904 = false) {
+  let days = serial;
+  if (!date1904 && days < 60) days += 1;
+  const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+  const t = new Date(epoch + Math.round(days * 86400) * 1e3);
+  const d = `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+  const tm = `${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}:${pad(t.getUTCSeconds())}`;
+  const showTime = fmt.time || !Number.isInteger(serial);
+  if (!fmt.date && serial < 1) return tm;
+  return showTime ? `${d} ${tm}` : d;
+}
+function formatNumber(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || Number.isInteger(n)) return v;
+  return String(Number(n.toPrecision(15)));
+}
+function colIndex(ref2) {
+  let n = 0;
+  for (const ch of ref2.toUpperCase()) {
+    const c = ch.charCodeAt(0);
+    if (c < 65 || c > 90) break;
+    n = n * 26 + (c - 64);
+  }
+  return n - 1;
+}
+async function readXlsx(input2) {
+  const bytes = input2 instanceof Uint8Array ? input2 : new Uint8Array(input2);
+  if (!looksLikeZip(bytes)) {
+    const ole = bytes[0] === 208 && bytes[1] === 207 && bytes[2] === 17 && bytes[3] === 224;
+    throw new Error(ole ? "Legacy .xls workbooks are not supported. Save the file as .xlsx in Excel and try again." : "Not an Excel workbook (.xlsx)");
+  }
+  const files = await unzip(bytes, (n) => n.endsWith(".xml") || n.endsWith(".rels"));
+  const wbPath = [...tags(files.get("_rels/.rels") ?? "", "Relationship")].map(([, a]) => attrs(a)).find((r) => /\/officeDocument$/.test(r.Type ?? ""))?.Target?.replace(/^\//, "") ?? "xl/workbook.xml";
+  const wbXml = files.get(wbPath);
+  if (!wbXml) {
+    if ([...files.keys()].some((k) => k.endsWith(".bin"))) throw new Error("Binary .xlsb workbooks are not supported. Save the file as .xlsx and try again.");
+    throw new Error("Not an Excel workbook: no workbook part found");
+  }
+  const wbRels = relationships(files, wbPath);
+  const date1904 = [...tags(wbXml, "workbookPr")].some(([, a]) => /^(1|true)$/i.test(attrs(a).date1904 ?? ""));
+  const sheetParts = [];
+  for (const [, a] of tags(wbXml, "sheet")) {
+    const s = attrs(a);
+    const path = wbRels.get(s.id ?? "");
+    if (!s.name || !path || !files.has(path)) continue;
+    if (!/<(?:\w+:)?worksheet\b/.test(files.get(path).slice(0, 2e3))) continue;
+    sheetParts.push({ sheet: { name: s.name, hidden: !!s.state && s.state !== "visible" }, path });
+  }
+  if (!sheetParts.length) throw new Error("The workbook has no worksheets");
+  const relTargets = [...wbRels.values()];
+  const sstPath = relTargets.find((t) => /sharedStrings\.xml$/i.test(t));
+  const shared = sstPath ? [...tags(files.get(sstPath) ?? "", "si")].map(([, , inner]) => textOf(inner ?? "")) : [];
+  const stylesXml = files.get(relTargets.find((t) => /styles\.xml$/i.test(t)) ?? "") ?? "";
+  const customFmt = /* @__PURE__ */ new Map();
+  for (const [, a] of tags(stylesXml, "numFmt")) {
+    const f = attrs(a);
+    customFmt.set(Number(f.numFmtId), f.formatCode ?? "");
+  }
+  const xfs = [];
+  const cellXfs = /<(?:\w+:)?cellXfs\b[^>]*>([\s\S]*?)<\/(?:\w+:)?cellXfs>/.exec(stylesXml)?.[1] ?? "";
+  for (const [, a] of tags(cellXfs, "xf")) {
+    const id = Number(attrs(a).numFmtId ?? 0);
+    const custom = customFmt.get(id);
+    xfs.push(
+      custom !== void 0 ? classifyFormat(custom) : BUILTIN_DATE.has(id) ? { date: !BUILTIN_TIME_ONLY.has(id), time: BUILTIN_TIME_ONLY.has(id) || id === 22 } : null
+    );
+  }
+  function rows(which) {
+    const part = typeof which === "number" ? sheetParts[which] : sheetParts.find((p) => p.sheet.name === which) ?? sheetParts.find((p) => p.sheet.name.toLowerCase() === which.toLowerCase());
+    if (!part) throw new Error(`No sheet named "${which}". Sheets: ${sheetParts.map((p) => p.sheet.name).join(", ")}`);
+    const xml = files.get(part.path);
+    const data = /<(?:\w+:)?sheetData\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?sheetData>)/.exec(xml)?.[1] ?? "";
+    const grid = [];
+    let minCol = Infinity;
+    let maxCol = -1;
+    let nextRow = 0;
+    for (const [, ra, rinner] of tags(data, "row")) {
+      const rAttr = attrs(ra).r;
+      const ri = rAttr ? Number(rAttr) - 1 : nextRow;
+      nextRow = ri + 1;
+      const cells = [];
+      let nextCol = 0;
+      for (const [, ca, cinner = ""] of tags(rinner ?? "", "c")) {
+        const c = attrs(ca);
+        const ci = c.r ? colIndex(c.r) : nextCol;
+        nextCol = ci + 1;
+        const v = /<(?:\w+:)?v(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?v>/.exec(cinner)?.[1];
+        let text;
+        switch (c.t) {
+          case "s":
+            text = shared[Number(v)] ?? "";
+            break;
+          case "inlineStr":
+            text = textOf(/<(?:\w+:)?is\b[^>]*>([\s\S]*?)<\/(?:\w+:)?is>/.exec(cinner)?.[1] ?? "");
+            break;
+          case "str":
+          case "e":
+            text = v === void 0 ? "" : unescapeOoxml(unescapeXml(v));
+            break;
+          case "b":
+            text = v === void 0 ? "" : v === "1" ? "TRUE" : "FALSE";
+            break;
+          case "d":
+            text = v === void 0 ? "" : unescapeXml(v).replace("T", " ").replace(/(\.\d+)?Z?$/, "").replace(/ 00:00:00$/, "");
+            break;
+          default: {
+            if (v === void 0 || v === "") {
+              text = "";
+              break;
+            }
+            const fmt = xfs[Number(c.s ?? 0)];
+            const n = Number(v);
+            text = fmt && Number.isFinite(n) ? serialToIso(n, fmt, date1904) : formatNumber(v);
+          }
+        }
+        if (text === "") continue;
+        cells[ci] = text.replace(/\r\n?/g, "\n");
+        minCol = Math.min(minCol, ci);
+        maxCol = Math.max(maxCol, ci);
+      }
+      if (cells.length) grid[ri] = cells;
+    }
+    if (maxCol < 0) return [];
+    return grid.filter(Boolean).map((r) => Array.from({ length: maxCol - minCol + 1 }, (_, i) => r[minCol + i] ?? ""));
+  }
+  return { sheets: sheetParts.map((p) => p.sheet), rows };
+}
+function rowsToTsv(rows) {
+  return rows.map((r) => r.map((v) => /[\t\n\r"]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join("	")).join("\n");
+}
+
 // src/cli.ts
 var [cmd, ...rest] = process.argv.slice(2);
 var { values: o, positionals } = parseArgs({
@@ -1245,6 +1469,7 @@ var { values: o, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     table: { type: "string" },
+    sheet: { type: "string" },
     format: { type: "string" },
     mapping: { type: "boolean" },
     null: { type: "boolean" },
@@ -1282,7 +1507,8 @@ var { values: o, positionals } = parseArgs({
     "max-pages": { type: "string" }
   }
 });
-var input = () => readFileSync(positionals[0] && positionals[0] !== "-" ? positionals[0] : 0, "utf8");
+var inputBytes = () => readFileSync(positionals[0] && positionals[0] !== "-" ? positionals[0] : 0);
+var input = () => inputBytes().toString("utf8");
 var num = (s, d) => s && Number.isFinite(Number(s)) ? Number(s) : d;
 var report = (warnings, checklist = [], settings = []) => {
   for (const w of warnings) process.stderr.write(`// ${w.level.toUpperCase()}: ${w.message}
@@ -1302,8 +1528,24 @@ function json(text, perRow) {
 try {
   switch (cmd) {
     case "inline": {
-      const { table } = parseTabular(input(), o.format && o.format !== "auto" ? { format: o.format } : {});
-      const r = generateInline(table, { tableName: o.table, mapping: o.mapping, emptyAsNull: o.null, preserveWhitespace: o.verbatim });
+      const bytes = inputBytes();
+      let text;
+      let tableName2 = o.table;
+      let opts = o.format && o.format !== "auto" ? { format: o.format } : {};
+      if (looksLikeZip(bytes) || bytes.subarray(0, 4).toString("hex") === "d0cf11e0") {
+        const wb = await readXlsx(bytes);
+        const asked = o.sheet ?? (wb.sheets.find((s) => !s.hidden) ?? wb.sheets[0]).name;
+        const rows = wb.rows(asked);
+        const sheet = wb.sheets.find((s) => s.name === asked)?.name ?? wb.sheets.find((s) => s.name.toLowerCase() === asked.toLowerCase())?.name ?? asked;
+        if (!rows.length) throw new Error(`Sheet "${sheet}" is empty`);
+        text = rowsToTsv(rows);
+        opts = { format: "delimited", delimiter: "	" };
+        tableName2 ??= sheet;
+        process.stderr.write(`// Sheet "${sheet}" of ${wb.sheets.map((s) => s.name).join(", ")}
+`);
+      } else text = bytes.toString("utf8");
+      const { table } = parseTabular(text, opts);
+      const r = generateInline(table, { tableName: tableName2, mapping: o.mapping, emptyAsNull: o.null, preserveWhitespace: o.verbatim });
       process.stdout.write(r.script);
       report(r.warnings);
       break;

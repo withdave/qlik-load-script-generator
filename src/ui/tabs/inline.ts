@@ -1,6 +1,7 @@
 import { parseTabular } from '../../core/detect';
 import { generateInline, looksLikeCode, type ColumnOptions, type Delimiter, type Enclosure } from '../../core/inline/generate';
 import type { InputFormat, Table } from '../../core/model';
+import { readXlsx, rowsToTsv, type Workbook } from '../../core/parse/xlsx';
 import { check, exampleBar as examplePicker, field, group, h, replace, sectionHead, select } from '../dom';
 import type { OutputPanel } from '../output';
 
@@ -43,7 +44,7 @@ const FORMAT_LABEL: Record<InputFormat, string> = {
 export function inlineTab(state: InlineState, out: OutputPanel, changed: () => void, examples: Record<string, string>) {
   const textarea = h('textarea.input', {
     spellcheck: false,
-    placeholder: 'Paste CSV, TSV (Excel / Google Sheets), a Markdown or HTML table, or a JSON array…',
+    placeholder: 'Paste CSV, TSV (Excel / Google Sheets), a Markdown or HTML table, or a JSON array… or drop an .xlsx file here',
     oninput: () => {
       state.text = textarea.value;
       state.columns = [];
@@ -65,6 +66,67 @@ export function inlineTab(state: InlineState, out: OutputPanel, changed: () => v
   });
   textarea.value = state.text;
 
+  // Excel upload: the chosen sheet is written into the text box as TSV, so the header switch,
+  // column options, drafts and share links all work exactly as they do for pasted data.
+  // The workbook itself only lives in memory and never leaves the browser.
+  let workbook: Workbook | null = null;
+  const fileStatus = h('div.file-status', {});
+  const fileInput = h('input', {
+    type: 'file',
+    accept: '.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12',
+    hidden: true,
+    'aria-hidden': 'true',
+    tabindex: -1,
+    onchange: () => {
+      const f = fileInput.files?.[0];
+      fileInput.value = '';
+      if (f) void openWorkbook(f);
+    },
+  });
+  const uploadBtn = h('button.chip', { type: 'button', onclick: () => fileInput.click() }, 'Upload Excel (.xlsx)');
+  textarea.addEventListener('dragover', (e) => {
+    if ((e as DragEvent).dataTransfer?.types.includes('Files')) e.preventDefault();
+  });
+  textarea.addEventListener('drop', (e) => {
+    const f = (e as DragEvent).dataTransfer?.files?.[0];
+    if (!f) return;
+    e.preventDefault();
+    void openWorkbook(f);
+  });
+
+  async function openWorkbook(file: File) {
+    try {
+      const wb = await readXlsx(await file.arrayBuffer());
+      workbook = wb;
+      const first = wb.sheets.find((s) => !s.hidden) ?? wb.sheets[0];
+      const sheetSel = select<string>(
+        wb.sheets.map((s) => [s.name, s.hidden ? `${s.name} (hidden)` : s.name]),
+        first.name,
+        (name) => loadSheet(name),
+      );
+      sheetSel.setAttribute('aria-label', 'Sheet to load');
+      replace(fileStatus, h('span.dim', {}, file.name), h('label.sheet-pick', {}, h('span.field-label', {}, 'Sheet'), sheetSel));
+      loadSheet(first.name);
+    } catch (e) {
+      workbook = null;
+      replace(fileStatus, h('span.file-error', {}, `${file.name}: ${(e as Error).message}`));
+    }
+  }
+
+  function loadSheet(name: string) {
+    if (!workbook) return;
+    const rows = workbook.rows(name);
+    textarea.value = state.text = rowsToTsv(rows);
+    state.format = 'delimited';
+    state.inDelimiter = '\t';
+    formatSel.value = state.format;
+    delimSel.value = state.inDelimiter;
+    state.tableName = tableName.value = name;
+    state.columns = [];
+    update();
+    if (!rows.length) out.set('', [], { error: `Sheet "${name}" is empty.` });
+  }
+
   const detected = h('span.badge', {});
   const grid = h('div.grid-wrap', {});
   const bind = <K extends keyof InlineState>(k: K, resetColumns = false) => (v: InlineState[K]) => {
@@ -77,6 +139,12 @@ export function inlineTab(state: InlineState, out: OutputPanel, changed: () => v
     return i;
   };
   const tableName = h('input', { value: state.tableName, oninput: () => bind('tableName')(tableName.value) });
+  const formatSel = select<InlineState['format']>(
+    [['auto', 'Auto-detect'], ['delimited', 'Delimited text'], ['markdown', 'Markdown table'], ['html', 'HTML table'], ['json', 'JSON'], ['ndjson', 'NDJSON']],
+    state.format,
+    bind('format', true),
+  );
+  const delimSel = select([['auto', 'Auto'], [',', 'Comma'], ['\t', 'Tab'], [';', 'Semicolon'], ['|', 'Pipe']], state.inDelimiter, bind('inDelimiter', true));
 
   const options = h(
     'div.options',
@@ -86,18 +154,8 @@ export function inlineTab(state: InlineState, out: OutputPanel, changed: () => v
       h(
         'div.row',
         {},
-        field(
-          'Input format',
-          select<InlineState['format']>(
-            [['auto', 'Auto-detect'], ['delimited', 'Delimited text'], ['markdown', 'Markdown table'], ['html', 'HTML table'], ['json', 'JSON'], ['ndjson', 'NDJSON']],
-            state.format,
-            bind('format', true),
-          ),
-        ),
-        field(
-          'Input delimiter',
-          select([['auto', 'Auto'], [',', 'Comma'], ['\t', 'Tab'], [';', 'Semicolon'], ['|', 'Pipe']], state.inDelimiter, bind('inDelimiter', true)),
-        ),
+        field('Input format', formatSel),
+        field('Input delimiter', delimSel),
       ),
       h('div.checks', {}, check('First row is the header', cb('header', true))),
     ),
@@ -132,6 +190,7 @@ export function inlineTab(state: InlineState, out: OutputPanel, changed: () => v
   );
 
   const exampleBar = examplePicker(examples, (_, text) => ((textarea.value = state.text = text), (state.columns = []), update()));
+  const fileBar = h('div.file-bar', {}, uploadBtn, fileInput, fileStatus);
 
   function renderGrid(table: Table) {
     const rows = table.rows.slice(0, 50);
@@ -212,6 +271,6 @@ export function inlineTab(state: InlineState, out: OutputPanel, changed: () => v
   }
 
   textarea.setAttribute('aria-label', 'Data to convert');
-  const el = h('div.panel', {}, h('div.input-head', {}, h('h2', {}, 'Paste data'), detected), textarea, exampleBar, options, grid);
+  const el = h('div.panel', {}, h('div.input-head', {}, h('h2', {}, 'Paste or upload data'), detected), textarea, fileBar, exampleBar, options, grid);
   return { el, update };
 }
