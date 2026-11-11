@@ -1,6 +1,8 @@
-# Merges Dependabot's grouped minor/patch npm updates and GitHub Actions updates once CI has
-# passed on the exact commit. It runs after the CI workflow finishes, so it never merges untested
-# code, even without branch protection. Major npm updates (group npm-major) are left for review.
+# Approves and merges Dependabot's grouped minor/patch npm updates and GitHub Actions updates once
+# CI has passed on the exact commit. It runs after the CI workflow finishes, so it never merges
+# untested code, even without branch protection. Major npm updates (group npm-major) are left for
+# review. The approval satisfies a "required approvals" rule on main; it needs Settings → Actions →
+# General → "Allow GitHub Actions to create and approve pull requests".
 name: Dependabot auto-merge
 
 on:
@@ -22,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # No checkout: this job runs with a write token and must never execute PR code.
-      - name: Merge the tested commit
+      - name: Approve and merge the tested commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -39,5 +41,11 @@ jobs:
             app/dependabot|dependabot\[bot\]) ;;
             *) echo "PR #$pr is by $author, not Dependabot; skipping."; exit 0 ;;
           esac
+          head=$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq '.headRefOid')
+          if [ "$head" != "$SHA" ]; then
+            echo "PR #$pr head is $head, but CI ran on $SHA; skipping until CI passes on the new commit."
+            exit 0
+          fi
+          gh pr review "$pr" --repo "$REPO" --approve --body "CI passed on $SHA; auto-approving Dependabot update."
           # --match-head-commit refuses to merge if Dependabot pushed a newer commit after CI ran.
           gh pr merge "$pr" --repo "$REPO" --squash --delete-branch --match-head-commit "$SHA"
