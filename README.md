@@ -80,7 +80,7 @@ The tests run the committed bundle against the source generators. A stale or bro
   - builds the web app
   - rebuilds the skill CLI with the installed esbuild and smoke-tests it on the fixtures
   - checks that the skill examples are up to date
-- **`.github/dependabot.yml`** opens weekly grouped PRs:
+- **`.github/dependabot.yml`** opens weekly grouped PRs. A 3-day `cooldown` means it only proposes a version once it has been published for 3 days, a guard against compromised releases (security updates are not delayed):
   - `npm-minor-patch`: all minor and patch npm updates in one PR
   - `npm-major`: major npm updates, for review
   - `github-actions`: action updates

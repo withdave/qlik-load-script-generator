@@ -1,5 +1,7 @@
 # Grouped dependency updates. The group names matter: dependabot-auto-merge.yml merges only the
 # npm-minor-patch and github-actions groups (after CI passes); npm-major waits for a human.
+# cooldown: Dependabot only proposes a version once it has been published for 3 days, so a
+# compromised release is usually caught and pulled before it can reach us (supply-chain guard).
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,6 +10,8 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
     commit-message:
       prefix: deps
     groups:
@@ -23,6 +27,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 3
     commit-message:
       prefix: ci
     groups:
