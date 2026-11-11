@@ -1,7 +1,7 @@
-# Approves and merges Dependabot's grouped minor/patch npm updates and GitHub Actions updates once
-# CI has passed on the exact commit. It runs after the CI workflow finishes, so it never merges
-# untested code, even without branch protection. Major npm updates (group npm-major) are left for
-# review. The approval satisfies a "required approvals" rule on main; it needs Settings → Actions →
+# Approves and merges Dependabot's grouped minor/patch npm updates (version and security groups)
+# and GitHub Actions updates once CI has passed on the exact commit. It runs after the CI workflow
+# finishes, so it never merges untested code, even without branch protection. Major npm updates
+# (group npm-major, and individual major security PRs) are left for review. The approval satisfies a "required approvals" rule on main; it needs Settings → Actions →
 # General → "Allow GitHub Actions to create and approve pull requests".
 name: Dependabot auto-merge
 
@@ -20,6 +20,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
       (contains(github.event.workflow_run.head_branch, '/npm-minor-patch-') ||
+       contains(github.event.workflow_run.head_branch, '/npm-security-') ||
        contains(github.event.workflow_run.head_branch, '/github-actions-'))
     runs-on: ubuntu-latest
     steps:
