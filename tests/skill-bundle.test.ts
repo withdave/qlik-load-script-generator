@@ -11,6 +11,7 @@ import { generateInline } from '../src/core/inline/generate';
 import { generateEngine } from '../src/core/json/engine';
 import { generateRest } from '../src/core/json/rest';
 import type { Json } from '../src/core/parse/json';
+import { readXlsx, rowsToTsv } from '../src/core/parse/xlsx';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const bundle = `${root}skills/qlik-inline-json-rest-generator/scripts/qlik-gen.mjs`;
@@ -22,6 +23,12 @@ describe('bundled skill CLI matches the source generators', () => {
   it('inline', () => {
     const expected = generateInline(parseTabular(readFileSync(fx('tabular/nasty.csv'), 'utf8')).table, { tableName: 'Notes' }).script;
     expect(run('inline', fx('tabular/nasty.csv'), '--table', 'Notes')).toBe(expected);
+  });
+
+  it('inline from an Excel sheet', async () => {
+    const wb = await readXlsx(readFileSync(fx('tabular/workbook.xlsx')));
+    const table = parseTabular(rowsToTsv(wb.rows('Regions & Codes')), { format: 'delimited', delimiter: '\t' }).table;
+    expect(run('inline', fx('tabular/workbook.xlsx'), '--sheet', 'Regions & Codes')).toBe(generateInline(table, { tableName: 'Regions & Codes' }).script);
   });
 
   it('engine, file source', () => {

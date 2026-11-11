@@ -17,6 +17,7 @@ hand; then review, adapt names, and explain the result.
 ```bash
 # Paste → INLINE (reads a file or stdin; auto-detects CSV/TSV/Markdown/HTML/JSON)
 node scripts/qlik-gen.mjs inline data.csv --table Products [--mapping] [--null] [--verbatim]
+node scripts/qlik-gen.mjs inline book.xlsx --sheet Products   # one sheet of an .xlsx/.xlsm (default: first visible)
 
 # JSON → engine
 node scripts/qlik-gen.mjs engine sample.json --path 'lib://DataFiles/orders.json' --root Orders
@@ -45,7 +46,7 @@ The same generator runs as a web app in the repo (`npm run dev`) for people who'
 
 | Situation | Use |
 |---|---|
-| A small table pasted from Excel, Sheets, a wiki or a CSV | INLINE, see [references/inline-tables.md](references/inline-tables.md) |
+| A small table pasted from Excel, Sheets, a wiki or a CSV, or one sheet of an .xlsx file | INLINE, see [references/inline-tables.md](references/inline-tables.md) |
 | A JSON file in a space, or a JSON URL via a web-file connection | Engine `(json)`, see [references/engine-json.md](references/engine-json.md) |
 | JSON in a column of a table already loaded (database, QVD, API text) | Engine via From_Field or JsonGet, see the same file |
 | An HTTP API needing auth headers, POST bodies or paging | REST connector, see [references/rest-connector.md](references/rest-connector.md) and [references/pagination.md](references/pagination.md) |
