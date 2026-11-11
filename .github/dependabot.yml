@@ -1,5 +1,6 @@
 # Grouped dependency updates. The group names matter: dependabot-auto-merge.yml merges only the
-# npm-minor-patch and github-actions groups (after CI passes); npm-major waits for a human.
+# npm-minor-patch, npm-security and github-actions groups (after CI passes); npm-major and
+# ungrouped major security updates wait for a human.
 # cooldown: Dependabot only proposes a version once it has been published for 3 days, so a
 # compromised release is usually caught and pulled before it can reach us (supply-chain guard).
 version: 2
@@ -21,6 +22,13 @@ updates:
       npm-major:
         patterns: ['*']
         update-types: [major]
+      # Security fixes are opened outside the version-update groups above. Grouping the
+      # minor/patch ones lets the auto-merge workflow pick them up; major security bumps stay
+      # as individual PRs for review.
+      npm-security:
+        applies-to: security-updates
+        patterns: ['*']
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
