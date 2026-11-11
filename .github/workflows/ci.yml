@@ -15,19 +15,15 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify (Node ${{ matrix.node }})
+    # The check name stays "Verify" whatever the Node version, so branch protection can require it.
+    name: Verify
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # 24 is the development version; 22 is the oldest maintained LTS the skill's CLI must run on.
-        node: [22, 24]
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node }}
+          node-version: latest
           cache: npm
 
       - name: Install

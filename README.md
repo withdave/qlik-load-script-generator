@@ -74,23 +74,24 @@ The tests run the committed bundle against the source generators. A stale or bro
 
 ## CI and dependency updates
 
-- **`.github/workflows/ci.yml`** runs on every pull request and every push to `main`, on Node 22 and 24. It:
+- **`.github/workflows/ci.yml`** runs one job, `Verify`, on every pull request and every push to `main`, on the latest Node release (unpinned). It:
   - typechecks the code
   - runs the tests (parsers, escaping, generator golden output, share links, and the bundled skill CLI against the source)
   - builds the web app
   - rebuilds the skill CLI with the installed esbuild and smoke-tests it on the fixtures
   - checks that the skill examples are up to date
-- **`.github/dependabot.yml`** opens weekly grouped PRs:
+- **`.github/dependabot.yml`** opens weekly grouped PRs. A 3-day `cooldown` means it only proposes a version once it has been published for 3 days, a guard against compromised releases (security updates are not delayed):
   - `npm-minor-patch`: all minor and patch npm updates in one PR
   - `npm-major`: major npm updates, for review
   - `github-actions`: action updates
 - **`.github/workflows/pages.yml`** tests and builds the web app, then publishes `dist/` to GitHub Pages at `https://<owner>.github.io/<repo>/`. It runs on every push to `main`, after each Dependabot auto-merge (those merges don't fire push events), and on demand. Asset paths are relative, so the subpath works.
-- **`.github/workflows/dependabot-auto-merge.yml`** runs after CI completes. It squash-merges a Dependabot PR from the `npm-minor-patch` or `github-actions` group only when CI passed on the PR's current head commit (`--match-head-commit`). It never checks out PR code. Major npm updates wait for a person.
+- **`.github/workflows/dependabot-auto-merge.yml`** runs after CI completes. It approves and squash-merges a Dependabot PR from the `npm-minor-patch` or `github-actions` group only when CI passed on the PR's current head commit (`--match-head-commit`). It never checks out PR code. Major npm updates wait for a person.
 
 Needs on GitHub:
 - Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 - Actions must be allowed to use the `contents: write` / `pull-requests: write` permissions the workflow requests. An org policy can cap this.
-- Branch protection that requires an approving review would block the merge. If you add protection, require the `Verify (Node 22)` and `Verify (Node 24)` checks instead.
+- Settings → Actions → General → **Allow GitHub Actions to create and approve pull requests**, so the workflow's approval counts toward a required-review rule.
+- In the `main` ruleset, require the **`Verify`** status check. Don't require `merge` (the auto-merge job) or the Pages jobs: they don't run on pull requests, so a required check on them would never report.
 - Merges made with the workflow token don't trigger a new CI run on `main`. The PR's own CI run is the gate.
 
 ## Key decisions
