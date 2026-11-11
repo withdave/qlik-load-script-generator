@@ -1,0 +1,33 @@
+// Nested JSON file: one load per array, linked by keys rebuilt from %Path.
+// Verified in Qlik Cloud with the same JSON loaded INLINE (same table is paths, field names and keys).
+
+[Company]:
+LOAD
+    company,
+    [address.city],
+    [address.geo.lat],
+    [address.geo.lon],
+    '/employees' AS [%Key_employees]
+FROM [lib://DataFiles/company.json] (json);
+
+[Company.employees]:
+LOAD
+    Left([%Path], Index([%Path], '/', -1) - 1) AS [%Key_employees],
+    [employees.name.first],
+    [employees.name.last],
+    [%Path] & '/tags' AS [%Key_employees.tags],
+    [%Path] & '/projects' AS [%Key_employees.projects]
+FROM [lib://DataFiles/company.json] (json, table is '/employees');
+
+[Company.employees.tags]:
+LOAD
+    Left([%Path], Index([%Path], '/', -1) - 1) AS [%Key_employees.tags],
+    [employees.tags.@1]
+FROM [lib://DataFiles/company.json] (json, table is '/employees/*/tags');
+
+[Company.employees.projects]:
+LOAD
+    Left([%Path], Index([%Path], '/', -1) - 1) AS [%Key_employees.projects],
+    [employees.projects.code],
+    [employees.projects.hours]
+FROM [lib://DataFiles/company.json] (json, table is '/employees/*/projects');

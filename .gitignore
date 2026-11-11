@@ -1,0 +1,6 @@
+node_modules
+dist
+tenant/out
+.DS_Store
+skills/*-workspace
+.claude/

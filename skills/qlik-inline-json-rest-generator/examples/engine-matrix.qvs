@@ -1,0 +1,10 @@
+// [][] matrix with a header row (native, current Qlik Cloud).
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+LET vJson = '[["Income","Life Expectancy","Population","Country","Year"],[815,34.05,351014,"Australia",1800],[1314,39,645526,"Canada",1800],[985,32,321675013,"China",1800]]';
+
+// [][] matrix: supported on current Qlik Cloud. On older engines, choose the JsonGet matrix option.
+[Life]:
+LOAD * INLINE '$(vJson)' (json, table is '/*/', embedded labels);
+
+SET vJson = ;

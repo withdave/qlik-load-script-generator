@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 24 is the development version; 22 is the oldest maintained LTS the skill's CLI must run on.
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Parsers, escaping, engine/REST generators (golden output), share links, and the
+      # committed skill bundle run against the source generators.
+      - name: Unit and bundle tests
+        run: npm test
+
+      - name: Build the web app
+        run: npm run build
+
+      # Rebuild the skill CLI with the installed esbuild and run it on the fixtures, so an
+      # esbuild bump that breaks bundling fails here.
+      - name: Rebuild and smoke-test the skill CLI
+        run: |
+          npm run build:skill
+          cli=skills/qlik-inline-json-rest-generator/scripts/qlik-gen.mjs
+          node "$cli" inline fixtures/tabular/nasty.csv --table Notes | grep -q 'INLINE'
+          node "$cli" engine fixtures/json/nested.json --source inline --root Company | grep -q "table is '/employees'"
+          node "$cli" rest fixtures/json/qlik-cloud-users-page.json --connection c --url https://t/api/v1/users --paging nexturl --next links.next.href | grep -q 'LOOP WHILE'
+
+      # The skill's examples are generated from the fixtures; they must match the source.
+      - name: Skill examples are up to date
+        run: |
+          npm run examples:skill
+          if [ -n "$(git status --porcelain -- skills/qlik-inline-json-rest-generator/examples)" ]; then
+            git status --porcelain -- skills/qlik-inline-json-rest-generator/examples
+            echo "::error::Skill examples are stale. Run 'npm run examples:skill' and commit the result."
+            exit 1
+          fi

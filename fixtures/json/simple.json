@@ -1,0 +1,5 @@
+[
+  { "id": 1, "name": "Alice", "active": true, "score": 9.5 },
+  { "id": 2, "name": "Bob", "active": false, "score": null },
+  { "id": 3, "name": "O'Connor $(x)", "active": true, "score": 7 }
+]

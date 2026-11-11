@@ -1,0 +1,19 @@
+{
+  "company": "Acme",
+  "address": { "city": "Lund", "geo": { "lat": 55.7, "lon": 13.2 } },
+  "employees": [
+    {
+      "name": { "first": "Ann", "last": "Lee" },
+      "tags": ["admin", "dev"],
+      "projects": [
+        { "code": "P1", "hours": 10 },
+        { "code": "P2", "hours": 5 }
+      ]
+    },
+    {
+      "name": { "first": "Ben", "last": "Ng" },
+      "tags": [],
+      "projects": [{ "code": "P1", "hours": 3 }]
+    }
+  ]
+}

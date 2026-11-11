@@ -1,0 +1,5 @@
+[
+  { "id": 1, "value": 10, "meta": "{\"source\":\"api\"}" },
+  { "id": 2, "value": { "amount": 20, "currency": "SEK" } },
+  { "id": 3, "value": [1, 2] }
+]

@@ -1,0 +1,17 @@
+// [][] matrix for older engines (JsonGet preceding load).
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+LET vJson = '[["Income","Life Expectancy","Population","Country","Year"],[815,34.05,351014,"Australia",1800],[1314,39,645526,"Canada",1800],[985,32,321675013,"China",1800]]';
+
+[Life]:
+LOAD
+    JsonGet(__row, '/0') AS Income,
+    JsonGet(__row, '/1') AS [Life Expectancy],
+    JsonGet(__row, '/2') AS Population,
+    JsonGet(__row, '/3') AS Country,
+    JsonGet(__row, '/4') AS Year
+WHERE RecNo() > 1;
+LOAD JsonGet(__doc, '/*') AS __row;
+LOAD @1:n AS __doc INLINE '$(vJson)' (fix, utf8, no labels, record is 1000000 lines);
+
+SET vJson = ;

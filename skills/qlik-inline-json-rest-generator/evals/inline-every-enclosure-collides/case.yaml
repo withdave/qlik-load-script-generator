@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: inline-every-enclosure-collides
+expected_outcome: |
+  An INLINE load of exactly 3 rows where every value round-trips exactly: brackets, back-ticks, both quote kinds, the comma, the line break, the $( and the trailing quote, with codes 001-003 kept as text.

@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "id": "u1", "name": "Ann Lee", "email": "ann@example.com", "status": "active",
+      "roles": ["TenantAdmin", "Developer"],
+      "assignedGroups": [{ "id": "g1", "name": "Sales" }],
+      "links": { "self": { "href": "https://tenant.eu.qlikcloud.com/api/v1/users/u1" } }
+    },
+    {
+      "id": "u2", "name": "Ben Ng", "email": "ben@example.com", "status": "disabled",
+      "roles": [], "assignedGroups": [],
+      "links": { "self": { "href": "https://tenant.eu.qlikcloud.com/api/v1/users/u2" } }
+    }
+  ],
+  "links": {
+    "self": { "href": "https://tenant.eu.qlikcloud.com/api/v1/users?limit=2" },
+    "next": { "href": "https://tenant.eu.qlikcloud.com/api/v1/users?limit=2&next=abc" }
+  },
+  "totalResults": 5
+}

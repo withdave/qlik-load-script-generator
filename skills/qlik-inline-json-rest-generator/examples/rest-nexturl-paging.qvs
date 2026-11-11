@@ -1,0 +1,182 @@
+// REST connector, Next URL pagination in script (Qlik Cloud APIs: links.next.href).
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+LIB CONNECT TO 'monitoring_apps_REST';
+
+LET vPage = 0;
+LET vNextUrl = 'https://your-tenant.eu.qlikcloud.com/api/v1/users?limit=100';
+
+DO
+	LET vPage = vPage + 1;
+	TRACE Fetching page $(vPage);
+
+	RestConnectorMasterTable:
+	SQL SELECT 
+		"totalResults",
+		"__KEY_root",
+		(SELECT 
+			"id",
+			"name",
+			"email",
+			"status",
+			"__FK_data",
+			"__KEY_data",
+			(SELECT 
+				"@Value",
+				"__FK_roles"
+			FROM "roles" FK "__FK_roles" ArrayValueAlias "@Value"),
+			(SELECT 
+				"id" AS "id_u0",
+				"name" AS "name_u0",
+				"__FK_assignedGroups"
+			FROM "assignedGroups" FK "__FK_assignedGroups"),
+			(SELECT 
+				"__FK_links",
+				"__KEY_links",
+				(SELECT 
+					"href",
+					"__FK_self"
+				FROM "self" FK "__FK_self")
+			FROM "links" PK "__KEY_links" FK "__FK_links")
+		FROM "data" PK "__KEY_data" FK "__FK_data"),
+		(SELECT 
+			"__FK_links_u0",
+			"__KEY_links_u0",
+			(SELECT 
+				"href" AS "href_u0",
+				"__FK_self_u0"
+			FROM "self" FK "__FK_self_u0"),
+			(SELECT 
+				"href" AS "href_u1",
+				"__FK_next"
+			FROM "next" FK "__FK_next")
+		FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+	FROM JSON (wrap on) "root" PK "__KEY_root"
+	WITH CONNECTION (URL "$(vNextUrl)");
+
+	[__page_root]:
+	NOCONCATENATE LOAD
+		[totalResults],
+		'$(vPage)|' & [__KEY_root] AS [__KEY_root]
+	RESIDENT RestConnectorMasterTable
+	WHERE NOT IsNull([__KEY_root]);
+
+	IF NOT IsNull(TableNumber('__page_root')) THEN
+		LEFT JOIN ([__page_root])
+		LOAD
+			'$(vPage)|' & [__FK_links_u0] AS [__KEY_root],
+			'$(vPage)|' & [__KEY_links_u0] AS [__KEY_links_u0]
+		RESIDENT RestConnectorMasterTable
+		WHERE NOT IsNull([__FK_links_u0]);
+
+		LEFT JOIN ([__page_root])
+		LOAD
+			'$(vPage)|' & [__FK_self_u0] AS [__KEY_links_u0],
+			[href_u0] AS [root.links.self.href]
+		RESIDENT RestConnectorMasterTable
+		WHERE NOT IsNull([__FK_self_u0]);
+
+		LEFT JOIN ([__page_root])
+		LOAD
+			'$(vPage)|' & [__FK_next] AS [__KEY_links_u0],
+			[href_u1] AS [links.next.href]
+		RESIDENT RestConnectorMasterTable
+		WHERE NOT IsNull([__FK_next]);
+
+		DROP FIELDS [__KEY_links_u0] FROM [__page_root];
+	END IF
+
+	[__page_data]:
+	NOCONCATENATE LOAD
+		[id],
+		[name],
+		[email],
+		[status],
+		'$(vPage)|' & [__KEY_data] AS [__KEY_data],
+		'$(vPage)|' & [__FK_data] AS [__KEY_root]
+	RESIDENT RestConnectorMasterTable
+	WHERE NOT IsNull([__FK_data]);
+
+	IF NOT IsNull(TableNumber('__page_data')) THEN
+		LEFT JOIN ([__page_data])
+		LOAD
+			'$(vPage)|' & [__FK_links] AS [__KEY_data],
+			'$(vPage)|' & [__KEY_links] AS [__KEY_links]
+		RESIDENT RestConnectorMasterTable
+		WHERE NOT IsNull([__FK_links]);
+
+		LEFT JOIN ([__page_data])
+		LOAD
+			'$(vPage)|' & [__FK_self] AS [__KEY_links],
+			[href] AS [links.self.href]
+		RESIDENT RestConnectorMasterTable
+		WHERE NOT IsNull([__FK_self]);
+
+		DROP FIELDS [__KEY_links] FROM [__page_data];
+	END IF
+
+	[__page_roles]:
+	NOCONCATENATE LOAD
+		[@Value] AS [roles],
+		'$(vPage)|' & [__FK_roles] AS [__KEY_data]
+	RESIDENT RestConnectorMasterTable
+	WHERE NOT IsNull([__FK_roles]);
+
+	[__page_assignedGroups]:
+	NOCONCATENATE LOAD
+		[id_u0] AS [assignedGroups.id],
+		[name_u0] AS [assignedGroups.name],
+		'$(vPage)|' & [__FK_assignedGroups] AS [__KEY_data]
+	RESIDENT RestConnectorMasterTable
+	WHERE NOT IsNull([__FK_assignedGroups]);
+
+	__next:
+	NOCONCATENATE LOAD [href_u1] AS __next RESIDENT RestConnectorMasterTable WHERE NOT IsNull([__FK_next]);
+	LET vLastUrl = vNextUrl;
+	LET vNextUrl = Peek('__next', 0, '__next');
+	IF NOT IsNull(TableNumber('__next')) THEN
+		DROP TABLE __next;
+	END IF
+
+	IF NOT IsNull(TableNumber('__page_root')) THEN
+		IF IsNull(TableNumber('root')) THEN
+			[root]:
+			NOCONCATENATE LOAD * RESIDENT [__page_root];
+		ELSE
+			CONCATENATE ([root]) LOAD * RESIDENT [__page_root];
+		END IF
+		DROP TABLE [__page_root];
+	END IF
+	IF NOT IsNull(TableNumber('__page_data')) THEN
+		IF IsNull(TableNumber('data')) THEN
+			[data]:
+			NOCONCATENATE LOAD * RESIDENT [__page_data];
+		ELSE
+			CONCATENATE ([data]) LOAD * RESIDENT [__page_data];
+		END IF
+		DROP TABLE [__page_data];
+	END IF
+	IF NOT IsNull(TableNumber('__page_roles')) THEN
+		IF IsNull(TableNumber('roles')) THEN
+			[roles]:
+			NOCONCATENATE LOAD * RESIDENT [__page_roles];
+		ELSE
+			CONCATENATE ([roles]) LOAD * RESIDENT [__page_roles];
+		END IF
+		DROP TABLE [__page_roles];
+	END IF
+	IF NOT IsNull(TableNumber('__page_assignedGroups')) THEN
+		IF IsNull(TableNumber('assignedGroups')) THEN
+			[assignedGroups]:
+			NOCONCATENATE LOAD * RESIDENT [__page_assignedGroups];
+		ELSE
+			CONCATENATE ([assignedGroups]) LOAD * RESIDENT [__page_assignedGroups];
+		END IF
+		DROP TABLE [__page_assignedGroups];
+	END IF
+	DROP TABLE RestConnectorMasterTable;
+LOOP WHILE Len('$(vNextUrl)') > 0 AND '$(vNextUrl)' <> '$(vLastUrl)';
+
+SET vPage = ;
+SET vNextUrl = ;
+SET vLastUrl = ;

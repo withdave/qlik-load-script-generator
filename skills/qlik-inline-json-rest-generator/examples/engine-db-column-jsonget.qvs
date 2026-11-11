@@ -1,0 +1,39 @@
+// JSON held in a column of a loaded table (method: jsonget).
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+// Sample rows standing in for a database table with a JSON column.
+[Orders]:
+LOAD * INLINE `
+id	payload
+1	{"orderId":"A1","customer":{"name":"Ann","country":"SE"},"lines":[{"sku":"X","qty":2,"tags":["red"]},{"sku":"Y","qty":1,"tags":[]}]}
+2	{"orderId":"A2","customer":{"name":"Ben","country":"UK"},"lines":[{"sku":"X","qty":5,"tags":["blue","big"]}]}
+3	{"orderId":"A2","customer":{"name":"Ben","country":"UK"},"lines":[{"sku":"X","qty":5,"tags":["blue","big"]}]}
+` (delimiter is '\t');
+
+[Order]:
+LOAD
+    id,
+    JsonGet([payload], '/orderId') AS orderId,
+    JsonGet([payload], '/customer/name') AS [customer.name],
+    JsonGet([payload], '/customer/country') AS [customer.country]
+RESIDENT [Orders]
+WHERE IsJson([payload]);
+
+[Order.lines]:
+LOAD
+    __k0 AS id,
+    Hash128(__k0, __j1) AS [%Key_lines.tags],
+    JsonGet(__j1, '/sku') AS [lines.sku],
+    JsonGet(__j1, '/qty') AS [lines.qty]
+WHERE NOT IsNull(__j1);
+LOAD __k0, JsonGet(__j0, '/lines/*') AS __j1;
+LOAD id AS __k0, [payload] AS __j0 RESIDENT [Orders] WHERE IsJson([payload]);
+
+[Order.lines.tags]:
+LOAD
+    __k1 AS [%Key_lines.tags],
+    __j2 AS [lines.tags]
+WHERE NOT IsNull(__j2);
+LOAD Hash128(__k0, __j1) AS __k1, JsonGet(__j1, '/tags/*') AS __j2;
+LOAD __k0, JsonGet(__j0, '/lines/*') AS __j1;
+LOAD id AS __k0, [payload] AS __j0 RESIDENT [Orders] WHERE IsJson([payload]);

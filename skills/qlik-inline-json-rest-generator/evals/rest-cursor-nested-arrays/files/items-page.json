@@ -1,0 +1,8 @@
+{
+  "items": [
+    {"id": "p1", "name": "Apollo", "owner": {"id": "u1", "email": "ann@acme.example"}, "tags": ["red", "core"], "budget": 1200.5},
+    {"id": "p2", "name": "Borealis", "owner": {"id": "u2", "email": "ben@acme.example"}, "tags": ["red", "core"], "budget": 800},
+    {"id": "p3", "name": "Cosmos", "owner": {"id": "u1", "email": "ann@acme.example"}, "tags": [], "budget": 0}
+  ],
+  "meta": {"pageSize": 50, "nextCursor": "c2Vjb25k"}
+}

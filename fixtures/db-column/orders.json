@@ -1,0 +1,5 @@
+[
+  { "orderId": "A1", "customer": { "name": "Ann", "country": "SE" }, "lines": [ { "sku": "X", "qty": 2, "tags": ["red"] }, { "sku": "Y", "qty": 1, "tags": [] } ] },
+  { "orderId": "A2", "customer": { "name": "Ben", "country": "UK" }, "lines": [ { "sku": "X", "qty": 5, "tags": ["blue", "big"] } ] },
+  { "orderId": "A2", "customer": { "name": "Ben", "country": "UK" }, "lines": [ { "sku": "X", "qty": 5, "tags": ["blue", "big"] } ] }
+]

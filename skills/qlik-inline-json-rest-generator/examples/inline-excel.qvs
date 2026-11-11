@@ -1,0 +1,9 @@
+// Excel / Google Sheets clipboard (tab separated).
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+[Products]:
+LOAD * INLINE [
+Name	Amount	Date
+Widget	1,234.50	2026-10-31
+Gadget	99	2026-01-02
+] (delimiter is '\t');

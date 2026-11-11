@@ -1,0 +1,5 @@
+[
+  {"id": 1, "lines": [{"sku": "X", "qty": 2, "tags": ["t"]}]},
+  {"id": 2, "lines": [{"sku": "X", "qty": 2, "tags": ["t"]}]},
+  {"id": 3, "lines": [{"sku": "Y", "qty": 1, "tags": ["t"]}]}
+]

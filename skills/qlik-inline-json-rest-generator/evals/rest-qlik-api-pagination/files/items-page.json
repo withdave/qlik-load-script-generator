@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "id": "a1b2", "name": "Sales Dashboard", "resourceType": "app", "createdAt": "2026-01-10T09:00:00Z",
+      "resourceAttributes": {"owner": "auth0|ann", "spaceId": "65f0aa", "published": true},
+      "links": {"self": {"href": "https://mytenant.eu.qlikcloud.com/api/v1/items/a1b2"}, "open": {"href": "https://mytenant.eu.qlikcloud.com/sense/app/x1"}}
+    },
+    {
+      "id": "c3d4", "name": "Finance", "resourceType": "app", "createdAt": "2026-02-11T09:00:00Z",
+      "resourceAttributes": {"owner": "auth0|ben", "spaceId": "", "published": false},
+      "links": {"self": {"href": "https://mytenant.eu.qlikcloud.com/api/v1/items/c3d4"}, "open": {"href": "https://mytenant.eu.qlikcloud.com/sense/app/x2"}}
+    }
+  ],
+  "links": {
+    "self": {"href": "https://mytenant.eu.qlikcloud.com/api/v1/items?resourceType=app&limit=100"},
+    "next": {"href": "https://mytenant.eu.qlikcloud.com/api/v1/items?resourceType=app&limit=100&next=eyJ9"}
+  }
+}

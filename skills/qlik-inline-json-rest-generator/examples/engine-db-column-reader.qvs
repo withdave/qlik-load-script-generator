@@ -1,0 +1,46 @@
+// JSON held in a column of a loaded table (method: reader).
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+// Sample rows standing in for a database table with a JSON column.
+[Orders]:
+LOAD * INLINE `
+id	payload
+1	{"orderId":"A1","customer":{"name":"Ann","country":"SE"},"lines":[{"sku":"X","qty":2,"tags":["red"]},{"sku":"Y","qty":1,"tags":[]}]}
+2	{"orderId":"A2","customer":{"name":"Ben","country":"UK"},"lines":[{"sku":"X","qty":5,"tags":["blue","big"]}]}
+3	{"orderId":"A2","customer":{"name":"Ben","country":"UK"},"lines":[{"sku":"X","qty":5,"tags":["blue","big"]}]}
+` (delimiter is '\t');
+
+// Tag every JSON document with its source row (__rowid), then let the JSON reader
+// expand it. The expanded tables link back through __rowid.
+[Orders_json]:
+LOAD
+    id,
+    RecNo() AS __rowid,
+    JsonSet([payload], '/__rowid', RecNo()) AS __json
+RESIDENT [Orders]
+WHERE IsJson([payload]);
+
+[Order]:
+LOAD
+    orderId,
+    [customer.name],
+    [customer.country],
+    FileName() & '|' & '/lines' AS [%Key_lines],
+    __rowid
+From_Field([Orders_json], __json) (json);
+
+[Order.lines]:
+LOAD
+    FileName() & '|' & Left([%Path], Index([%Path], '/', -1) - 1) AS [%Key_lines],
+    [lines.sku],
+    [lines.qty],
+    FileName() & '|' & [%Path] & '/tags' AS [%Key_lines.tags]
+From_Field([Orders_json], __json) (json, table is '/lines');
+
+[Order.lines.tags]:
+LOAD
+    FileName() & '|' & Left([%Path], Index([%Path], '/', -1) - 1) AS [%Key_lines.tags],
+    [lines.tags.@1]
+From_Field([Orders_json], __json) (json, table is '/lines/*/tags');
+
+DROP FIELD __json FROM [Orders_json];

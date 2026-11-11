@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: db-json-column-expand
+expected_outcome: |
+  A script that expands the payload field of RawOrders into an orders table and a lines table where every line row carries (or links to) order_id, identical payloads do not collapse into one order, and empty lines arrays do not create junk rows.

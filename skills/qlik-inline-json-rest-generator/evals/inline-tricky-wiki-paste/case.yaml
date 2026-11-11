@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: inline-tricky-wiki-paste
+expected_outcome: |
+  A LOAD ... INLINE statement that loads exactly 3 rows with the 4 columns intact: the ] in 'Cable [2m]', the $( in the note, the comma in 'Plug, 3-pin', the quotes around fragile and the // all survive, and the SKUs keep their leading zeros.

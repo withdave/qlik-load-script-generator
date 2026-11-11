@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: engine-nested-json-file
+expected_outcome: |
+  Engine-native (json) loads from lib://DataFiles/orders.json: one table per array (orders, lines, tags) linked by the engine's %Key_ fields, with table is pointers starting /*/ because the root is an array, and nested objects flattened into dotted field names.
+context:
+  scaffold_script: place-files.sh

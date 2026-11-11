@@ -1,0 +1,31 @@
+{
+  "name": "qlik-load-script-generator",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Generate Qlik Sense load script for INLINE tables, native JSON loads and REST connector JSON with pagination.",
+  "homepage": "https://withdave.github.io/qlik-load-script-generator/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/withdave/qlik-load-script-generator.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fixtures:tenant": "vite-node tenant/build-fixture-script.ts",
+    "build:skill": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node18 --outfile=skills/qlik-inline-json-rest-generator/scripts/qlik-gen.mjs --banner:js='#!/usr/bin/env node\n// Bundled from src/cli.ts by `npm run build:skill`. Do not edit by hand.'",
+    "examples:skill": "vite-node tenant/build-examples.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5",
+    "vite-node": "^3.2.4",
+    "vitest": "^3.2.7"
+  }
+}

@@ -1,0 +1,43 @@
+# Merges Dependabot's grouped minor/patch npm updates and GitHub Actions updates once CI has
+# passed on the exact commit. It runs after the CI workflow finishes, so it never merges untested
+# code, even without branch protection. Major npm updates (group npm-major) are left for review.
+name: Dependabot auto-merge
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      (contains(github.event.workflow_run.head_branch, '/npm-minor-patch-') ||
+       contains(github.event.workflow_run.head_branch, '/github-actions-'))
+    runs-on: ubuntu-latest
+    steps:
+      # No checkout: this job runs with a write token and must never execute PR code.
+      - name: Merge the tested commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number')
+          if [ -z "$pr" ]; then
+            echo "No open PR for $BRANCH; nothing to merge."
+            exit 0
+          fi
+          author=$(gh pr view "$pr" --repo "$REPO" --json author --jq '.author.login')
+          case "$author" in
+            app/dependabot|dependabot\[bot\]) ;;
+            *) echo "PR #$pr is by $author, not Dependabot; skipping."; exit 0 ;;
+          esac
+          # --match-head-commit refuses to merge if Dependabot pushed a newer commit after CI ran.
+          gh pr merge "$pr" --repo "$REPO" --squash --delete-branch --match-head-commit "$SHA"

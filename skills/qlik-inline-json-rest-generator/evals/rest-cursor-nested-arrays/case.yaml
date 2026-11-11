@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: rest-cursor-nested-arrays
+expected_outcome: |
+  A REST connector paging loop that sends cursor=<meta.nextCursor> after the first page and stops when it is missing, producing a projects table with owner email and a tags table linked to the correct project across pages.
+context:
+  scaffold_script: place-files.sh

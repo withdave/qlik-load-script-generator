@@ -1,0 +1,14 @@
+// Nested JSON file with LOAD * (engine %Key_ content hashes: identical arrays share keys).
+// Verified in Qlik Cloud with the same JSON loaded INLINE. Prefer engine-file-nested.qvs when arrays can repeat.
+
+[Company]:
+LOAD * FROM [lib://DataFiles/company.json] (json);
+
+[Company.employees]:
+LOAD * FROM [lib://DataFiles/company.json] (json, table is '/employees');
+
+[Company.employees.tags]:
+LOAD * FROM [lib://DataFiles/company.json] (json, table is '/employees/*/tags');
+
+[Company.employees.projects]:
+LOAD * FROM [lib://DataFiles/company.json] (json, table is '/employees/*/projects');

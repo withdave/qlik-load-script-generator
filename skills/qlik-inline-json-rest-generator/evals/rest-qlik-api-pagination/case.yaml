@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: rest-qlik-api-pagination
+expected_outcome: |
+  A REST connector script that pages through all items by following links.next.href until it is empty, using WITH CONNECTION (URL ...) only, re-using the connector's alias names that match the sample, dropping RestConnectorMasterTable each page, and keeping keys unique across pages.
+context:
+  scaffold_script: place-files.sh

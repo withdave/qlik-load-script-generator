@@ -1,0 +1,118 @@
+// REST connector, exactly as the Select data dialog generates it.
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+LIB CONNECT TO 'monitoring_apps_REST';
+
+RestConnectorMasterTable:
+SQL SELECT 
+	"totalResults",
+	"__KEY_root",
+	(SELECT 
+		"id",
+		"name",
+		"email",
+		"status",
+		"__FK_data",
+		"__KEY_data",
+		(SELECT 
+			"@Value",
+			"__FK_roles"
+		FROM "roles" FK "__FK_roles" ArrayValueAlias "@Value"),
+		(SELECT 
+			"id" AS "id_u0",
+			"name" AS "name_u0",
+			"__FK_assignedGroups"
+		FROM "assignedGroups" FK "__FK_assignedGroups"),
+		(SELECT 
+			"__FK_links",
+			"__KEY_links",
+			(SELECT 
+				"href",
+				"__FK_self"
+			FROM "self" FK "__FK_self")
+		FROM "links" PK "__KEY_links" FK "__FK_links")
+	FROM "data" PK "__KEY_data" FK "__FK_data"),
+	(SELECT 
+		"__FK_links_u0",
+		"__KEY_links_u0",
+		(SELECT 
+			"href" AS "href_u0",
+			"__FK_self_u0"
+		FROM "self" FK "__FK_self_u0"),
+		(SELECT 
+			"href" AS "href_u1",
+			"__FK_next"
+		FROM "next" FK "__FK_next")
+	FROM "links" PK "__KEY_links_u0" FK "__FK_links_u0")
+FROM JSON (wrap on) "root" PK "__KEY_root"
+WITH CONNECTION (URL "https://your-tenant.eu.qlikcloud.com/api/v1/users?limit=100");
+
+[root]:
+LOAD
+	[totalResults],
+	[__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__KEY_root]);
+
+[data]:
+LOAD
+	[id],
+	[name],
+	[email],
+	[status],
+	[__KEY_data],
+	[__FK_data] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_data]);
+
+[roles]:
+LOAD
+	[@Value],
+	[__FK_roles] AS [__KEY_data]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_roles]);
+
+[assignedGroups]:
+LOAD
+	[id_u0],
+	[name_u0],
+	[__FK_assignedGroups] AS [__KEY_data]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_assignedGroups]);
+
+[links]:
+LOAD
+	[__KEY_links],
+	[__FK_links] AS [__KEY_data]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_links]);
+
+[self]:
+LOAD
+	[href],
+	[__FK_self] AS [__KEY_links]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_self]);
+
+[links_u0]:
+LOAD
+	[__KEY_links_u0],
+	[__FK_links_u0] AS [__KEY_root]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_links_u0]);
+
+[self_u0]:
+LOAD
+	[href_u0],
+	[__FK_self_u0] AS [__KEY_links_u0]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_self_u0]);
+
+[next]:
+LOAD
+	[href_u1],
+	[__FK_next] AS [__KEY_links_u0]
+RESIDENT RestConnectorMasterTable
+WHERE NOT IsNull([__FK_next]);
+
+DROP TABLE RestConnectorMasterTable;

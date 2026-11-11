@@ -1,0 +1,6 @@
+[
+  {"orderId": "A1", "orderDate": "2026-10-01", "customer": {"name": "Ann", "address": {"city": "Lund", "country": "SE"}},
+   "lines": [{"sku": "X", "qty": 2, "tags": ["red", "sale"]}, {"sku": "Y", "qty": 1, "tags": []}]},
+  {"orderId": "A2", "orderDate": "2026-10-02", "customer": {"name": "Ben", "address": {"city": "Leeds", "country": "UK"}},
+   "lines": [{"sku": "X", "qty": 5, "tags": ["blue"]}]}
+]

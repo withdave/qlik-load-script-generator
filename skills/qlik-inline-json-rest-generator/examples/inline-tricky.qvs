@@ -1,0 +1,17 @@
+// Pasted CSV with ], $(, quotes, a line break, // and leading zeros.
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+[Notes]:
+LOAD
+    id,
+    Replace(Replace(label, '{#DOLLAR#}', Chr(36)&'('), '{#DQ#}', Chr(34)) AS label,
+    Replace(Replace(Replace(note, '{#LF#}', Chr(10)), '{#DQ#}', Chr(34)), '{#SQ#}', Chr(39)) AS note,
+    Text(code) AS code
+INLINE `
+id	label	note	code
+1	Rate Increase [%]	has, comma	007
+2	CYCLADES]	multi{#LF#}line	0042
+3	Awd Tot {#DOLLAR#}by CAN)	O{#SQ#}Brien said {#DQ#}hi{#DQ#}	12
+4	{#DQ#}quoted{#DQ#}	// not a comment	1
+5	https://example.com/a;b	semi;colon	
+` (delimiter is '\t');

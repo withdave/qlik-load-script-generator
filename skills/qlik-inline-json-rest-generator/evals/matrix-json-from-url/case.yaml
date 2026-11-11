@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: matrix-json-from-url
+expected_outcome: |
+  A load of the [][] JSON from lib://WebFiles/population.json that produces Country, Year and Population fields with 3 data rows and the header row not loaded as data.

@@ -1,0 +1,14 @@
+// Embedded JSON sample (', $ and ` are \u-escaped).
+// Verified by reloading in Qlik Cloud (see tenant/build-fixture-script.ts).
+
+LET vJson = '[{"id":1,"name":"Alice","active":true,"score":9.5},{"id":2,"name":"Bob","active":false,"score":null},{"id":3,"name":"O\u0027Connor \u0024(x)","active":true,"score":7}]';
+
+[People]:
+LOAD
+    id,
+    name,
+    active,
+    score
+INLINE '$(vJson)' (json);
+
+SET vJson = ;
